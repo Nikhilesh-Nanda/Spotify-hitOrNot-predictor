@@ -1,6 +1,5 @@
 import streamlit as st
-import pandas as 
-
+import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -71,8 +70,8 @@ def preprocess_data(data_df):
 
 @st.cache_resource
 def train_kmeans(df):
-    features_for_kmeans = ['popularity', 'energy', 'danceability', 'loudness', 'acousticness', 
-                           'instrumentalness', 'liveness', 'valence', 'tempo', 'mode', 
+    features_for_kmeans = ['popularity', 'energy', 'danceability', 'loudness', 'acousticness',
+                           'instrumentalness', 'liveness', 'valence', 'tempo', 'mode',
                            'explicit', 'key', 'speechiness', 'time_signature', 'minutes', 'seconds', 'hours']
     X_kmeans = df[features_for_kmeans]
     scaler_kmeans = StandardScaler() # It's good practice to scale for KMeans
@@ -89,8 +88,8 @@ def train_random_forest(df, kmeans_model, kmeans_scaler, kmeans_features):
     df['kmeans_cluster'] = kmeans_model.predict(X_kmeans_full_scaled)
 
     # Features for the RandomForest model, including the new interaction terms and kmeans_cluster
-    features_for_rf = ['liveness', 'explicit', 'minutes', 'seconds', 'hours', 'key', 
-                       'speechiness', 'time_signature', 'kmeans_cluster', 
+    features_for_rf = ['liveness', 'explicit', 'minutes', 'seconds', 'hours', 'key',
+                       'speechiness', 'time_signature', 'kmeans_cluster',
                        'en_danc_inrct', 'loud_danc_intrct', 'acs_inst_intrc']
     X_rf = df[features_for_rf]
     y_rf = df['isHit']
@@ -115,15 +114,15 @@ def get_recommender_features(df, kmeans_model, kmeans_scaler, kmeans_features):
                             'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo',
                             'time_signature', 'minutes', 'seconds', 'hours', 'explicit', 'popularity', 'kmeans_cluster',
                             'en_danc_inrct', 'loud_danc_intrct', 'acs_inst_intrc']
-    
+
     # Drop any NaNs that might have been introduced during feature engineering if not handled earlier
     df_clean = df.dropna(subset=recommender_features).reset_index(drop=True)
 
     scaler_recommender = StandardScaler()
     scaled_features = scaler_recommender.fit_transform(df_clean[recommender_features])
-    
+
     df_features = pd.DataFrame(scaled_features, columns=recommender_features, index=df_clean.index)
-    
+
     return df_clean, df_features, scaler_recommender, recommender_features
 
 
@@ -160,13 +159,13 @@ if page == "Data Overview":
 elif page == "Feature Distributions":
     st.header("Audio Feature Distributions")
     st.write("Explore the distribution of key audio features.")
-    
+
     feature_to_plot = st.selectbox(
         "Select a feature to visualize",
-        ["popularity", "danceability", "energy", "loudness", "acousticness", 
+        ["popularity", "danceability", "energy", "loudness", "acousticness",
          "instrumentalness", "liveness", "valence", "tempo", "speechiness"]
     )
-    
+
     fig, ax = plt.subplots(figsize=(10, 6))
     sns.histplot(my_data_processed[feature_to_plot], kde=True, ax=ax, color='skyblue')
     ax.set_title(f"Distribution of {feature_to_plot.title()}")
@@ -199,20 +198,20 @@ elif page == "Hit Song Prediction":
 
     # Create a DataFrame for the single input
     input_data = pd.DataFrame([[liveness, explicit, duration_minutes, duration_seconds,
-                                duration_hours, key, speechiness, time_signature, 
+                                duration_hours, key, speechiness, time_signature,
                                 # KMeans cluster is predicted below
                                 0, # Placeholder for kmeans_cluster
                                 energy * danceability, # en_danc_inrct
                                 loudness * danceability, # loud_danc_intrct
                                 acousticness * instrumentalness # acs_inst_intrc
-                               ]], 
-                              columns=['liveness', 'explicit', 'minutes', 'seconds', 'hours', 'key', 
-                                       'speechiness', 'time_signature', 'kmeans_cluster', 
+                               ]],
+                              columns=['liveness', 'explicit', 'minutes', 'seconds', 'hours', 'key',
+                                       'speechiness', 'time_signature', 'kmeans_cluster',
                                        'en_danc_inrct', 'loud_danc_intrct', 'acs_inst_intrc'])
-    
+
     # Predict KMeans cluster for the single input
     kmeans_input_features = pd.DataFrame([[
-        popularity, energy, danceability, loudness, acousticness, 
+        popularity, energy, danceability, loudness, acousticness,
         instrumentalness, liveness, valence, tempo, 0, # mode, assuming a default like 0 if not given
         explicit, key, speechiness, time_signature, duration_minutes, duration_seconds, duration_hours
     ]], columns=kmeans_features)
@@ -232,7 +231,7 @@ elif page == "Hit Song Prediction":
         st.success(f"The model predicts this song is a **HIT**! (Probability: {prediction_proba[0][1]:.2f})")
     else:
         st.info(f"The model predicts this song is **NOT a Hit**. (Probability: {prediction_proba[0][0]:.2f})")
-    
+
     st.write("--- Model Evaluation ---")
     st.write("The Random Forest model achieved an F1-Score of 0.7506 on the test set with initial feature engineering.")
     st.write("After further feature engineering, the F1-Score was 0.75.")
@@ -260,7 +259,7 @@ elif page == "Song Recommender":
     if target_song_index is None:
         available_songs = df_recommender['track_name'] + " - " + df_recommender['artists']
         selected_song_display = st.selectbox("Or select a song from the list", [''] + list(available_songs.unique()))
-        
+
         if selected_song_display:
             # Extract track_name and artists from the display string
             track_name, artists = selected_song_display.rsplit(' - ', 1)
@@ -269,7 +268,7 @@ elif page == "Song Recommender":
 
     if target_song_index is not None:
         num_recommendations = st.slider("Number of recommendations", 5, 20, 10)
-        
+
         # Get the feature vector for the target song
         target_features = df_scaled_features.loc[target_song_index].values.reshape(1, -1)
 
