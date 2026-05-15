@@ -42,8 +42,8 @@ def preprocess_data(data_df):
     df['explicit'] = df['explicit'].astype(int)
 
     # Convert track and album names to title case
-    df['track_name'] = df['track_name'].astype(str).apply(lambda x: x.lower().title())
-    df['album_name'] = df['album_name'].astype(str).apply(lambda x: x.lower().title())
+    df['track_name'] = df['track_name'].apply(lambda x: str(x).lower().title())
+    df['album_name'] = df['album_name'].apply(lambda x: str(x).lower().title())
 
     # Convert duration_ms to minutes, seconds, hours
     df['duration_sec'] = df['duration_ms'] / 1000
