@@ -35,8 +35,8 @@ def preprocess_data(data_df):
             most_frequent = df[col].mode()[0] # .mode() returns a Series, take first
             df[col].fillna(most_frequent, inplace=True)
 
-    # Split artists string
-    df['artists'] = df['artists'].astype(str).apply(lambda x: ','.join(x.split(';')))
+    # Split artists string, ensuring each element is a string before splitting
+    df['artists'] = df['artists'].apply(lambda x: ','.join(str(x).split(';')))
 
     # Convert explicit column
     df['explicit'] = df['explicit'].astype(int)
