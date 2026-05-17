@@ -234,10 +234,6 @@ elif page == "Hit Song Prediction":
     else:
         st.info(f"The model predicts this song is **NOT a Hit**. (Probability: {prediction_proba[0][0]:.2f})")
 
-    st.write("--- Model Evaluation ---")
-    st.write("The Random Forest model achieved an F1-Score of 0.7506 on the test set with initial feature engineering.")
-    st.write("After further feature engineering, the F1-Score was 0.75.")
-
 elif page == "Song Recommender":
     st.header("Find Similar Songs")
     st.write("Enter a song title or choose a song from the dropdown to get recommendations based on audio features.")
@@ -368,4 +364,4 @@ elif page == "User-Defined Recommendations":
         st.write("No songs found matching your specified criteria. Try broadening your selections.")
 
 st.sidebar.markdown("---")
-st.sidebar.write("Project by Your Name")
+st.sidebar.write("Made By Nikhilesh Nanda")
