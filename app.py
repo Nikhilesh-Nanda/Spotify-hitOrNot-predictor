@@ -146,7 +146,7 @@ df_recommender, df_scaled_features, recommender_scaler, recommender_features = g
 
 # --- Sidebar for Navigation/Inputs ---
 st.sidebar.header("Navigation")
-page = st.sidebar.radio("Go to", ["Data Overview", "Hit Song Prediction", "Song Recommender", "Feature Distributions"])
+page = st.sidebar.radio("Go to", ["Data Overview", "Hit Song Prediction", "Song Recommender", "User-Defined Recommendations", "Feature Distributions"])
 
 if page == "Data Overview":
     st.header("Dataset Overview")
@@ -280,9 +280,13 @@ elif page == "Song Recommender":
         sorted_similarities = sorted(similarity_scores, key=lambda x: x[1], reverse=True)
 
         st.subheader(f"Top {num_recommendations} Recommendations for {df_recommender.loc[target_song_index, 'track_name']}:")
-        recommendations_df = pd.DataFrame(columns=['Track Name', 'Artist(s)', 'Album Name', 'Genre', 'Popularity', 'Similarity Score'])
+        recommendations_df = pd.DataFrame(columns=['Track Name', 'Artist(s)', 'Album Name', 'Genre', 'Popularity', 'Similarity Score', 'Explanation'])
 
         count = 0
+        # Define features for explanation ranking (excluding categorical and interaction terms)
+        features_for_explanation_ranking = ['danceability', 'energy', 'loudness', 'acousticness',
+                                            'instrumentalness', 'liveness', 'valence', 'tempo', 'speechiness']
+
         for i, score in sorted_similarities:
             if i == target_song_index: # Skip the song itself
                 continue
@@ -290,18 +294,76 @@ elif page == "Song Recommender":
                 break
 
             track = df_recommender.loc[i]
+
+            # --- Explanation Generation Logic ---
+            target_track_features_scaled = df_scaled_features.loc[target_song_index]
+            recommended_track_features_scaled = df_scaled_features.loc[i]
+
+            # Calculate absolute difference in scaled features for relevant features
+            feature_diffs_scaled = abs(target_track_features_scaled - recommended_track_features_scaled)
+            filtered_feature_diffs_scaled = feature_diffs_scaled.loc[features_for_explanation_ranking]
+
+            # Find the top 3 most similar features (smallest absolute difference)
+            most_similar_features_ranked = filtered_feature_diffs_scaled.nsmallest(3)
+
+            explanation_parts = []
+            for feature_name, diff_value in most_similar_features_ranked.items():
+                # Get original (unscaled) values for the explanation
+                target_val = df_recommender.loc[target_song_index, feature_name]
+                rec_val = df_recommender.loc[i, feature_name]
+                explanation_parts.append(f"{feature_name.replace('_', ' ').title()}: Target={target_val:.2f}, Recommended={rec_val:.2f}")
+
+            explanation_str = "Similar on: " + "; ".join(explanation_parts)
+            # --- End Explanation Generation Logic ---
+
             recommendations_df.loc[count] = [
                 track['track_name'],
                 track['artists'],
                 track['album_name'],
                 track['track_genre'],
                 track['popularity'],
-                f"{score:.4f}"
+                f"{score:.4f}",
+                explanation_str
             ]
             count += 1
         st.dataframe(recommendations_df)
     else:
         st.write("Please select a song to get recommendations.")
+
+elif page == "User-Defined Recommendations":
+    st.header("User-Defined Recommendations")
+    st.write("Specify your preferred ranges for audio features to get personalized song recommendations.")
+
+    st.sidebar.subheader("Desired Song Characteristics")
+
+    # Sliders for user preferences
+    min_popularity, max_popularity = st.sidebar.slider("Popularity", 0, 100, (50, 100))
+    min_danceability, max_danceability = st.sidebar.slider("Danceability", 0.0, 1.0, (0.5, 1.0), 0.01)
+    min_energy, max_energy = st.sidebar.slider("Energy", 0.0, 1.0, (0.5, 1.0), 0.01)
+    min_valence, max_valence = st.sidebar.slider("Valence (Positivity)", 0.0, 1.0, (0.5, 1.0), 0.01)
+    min_acousticness, max_acousticness = st.sidebar.slider("Acousticness", 0.0, 1.0, (0.0, 0.5), 0.01)
+    min_instrumentalness, max_instrumentalness = st.sidebar.slider("Instrumentalness", 0.0, 1.0, (0.0, 0.1), 0.001)
+    min_liveness, max_liveness = st.sidebar.slider("Liveness", 0.0, 1.0, (0.0, 0.5), 0.01)
+    min_speechiness, max_speechiness = st.sidebar.slider("Speechiness", 0.0, 1.0, (0.0, 0.5), 0.01)
+
+    # Filter songs based on user preferences
+    filtered_songs = df_recommender[
+        (df_recommender['popularity'] >= min_popularity) & (df_recommender['popularity'] <= max_popularity) &
+        (df_recommender['danceability'] >= min_danceability) & (df_recommender['danceability'] <= max_danceability) &
+        (df_recommender['energy'] >= min_energy) & (df_recommender['energy'] <= max_energy) &
+        (df_recommender['valence'] >= min_valence) & (df_recommender['valence'] <= max_valence) &
+        (df_recommender['acousticness'] >= min_acousticness) & (df_recommender['acousticness'] <= max_acousticness) &
+        (df_recommender['instrumentalness'] >= min_instrumentalness) & (df_recommender['instrumentalness'] <= max_instrumentalness) &
+        (df_recommender['liveness'] >= min_liveness) & (df_recommender['liveness'] <= max_liveness) &
+        (df_recommender['speechiness'] >= min_speechiness) & (df_recommender['speechiness'] <= max_speechiness)
+    ]
+
+    if not filtered_songs.empty:
+        st.subheader(f"Found {len(filtered_songs)} songs matching your criteria:")
+        # Display relevant columns for recommended songs
+        st.dataframe(filtered_songs[['track_name', 'artists', 'album_name', 'popularity', 'danceability', 'energy', 'valence']].sort_values(by='popularity', ascending=False))
+    else:
+        st.write("No songs found matching your specified criteria. Try broadening your selections.")
 
 st.sidebar.markdown("---")
 st.sidebar.write("Project by Your Name")
