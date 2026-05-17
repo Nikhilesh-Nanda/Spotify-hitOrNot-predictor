@@ -1,3 +1,5 @@
+%%writefile app.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -81,49 +83,31 @@ def train_kmeans(df):
     return kmeans, scaler_kmeans, features_for_kmeans
 
 @st.cache_resource
-def train_random_forest(df, kmeans_model, kmeans_scaler, kmeans_features):
-    # Predict KMeans clusters for the full dataset
-    X_kmeans_full = df[kmeans_features]
-    X_kmeans_full_scaled = kmeans_scaler.transform(X_kmeans_full)
-    df['kmeans_cluster'] = kmeans_model.predict(X_kmeans_full_scaled)
-
-    # Features for the RandomForest model, including the new interaction terms and kmeans_cluster
-    features_for_rf = ['liveness', 'explicit', 'minutes', 'seconds', 'hours', 'key',
-                       'speechiness', 'time_signature', 'kmeans_cluster',
-                       'en_danc_inrct', 'loud_danc_intrct', 'acs_inst_intrc']
-    X_rf = df[features_for_rf]
-    y_rf = df['isHit']
+def train_random_forest(df_with_clusters, rf_features):
+    # df_with_clusters already contains 'kmeans_cluster'
+    X_rf = df_with_clusters[rf_features]
+    y_rf = df_with_clusters['isHit']
 
     scaler_rf = StandardScaler()
     X_rf_scaled = scaler_rf.fit_transform(X_rf)
 
     rf_model = RandomForestClassifier(random_state=42) # Using default params for simplicity in app
     rf_model.fit(X_rf_scaled, y_rf)
-    return rf_model, scaler_rf, features_for_rf
+    return rf_model, scaler_rf
 
 @st.cache_data
-def get_recommender_features(df, kmeans_model, kmeans_scaler, kmeans_features):
-    # Ensure 'kmeans_cluster' is in the df for recommendation features
-    if 'kmeans_cluster' not in df.columns:
-        X_kmeans_full = df[kmeans_features]
-        X_kmeans_full_scaled = kmeans_scaler.transform(X_kmeans_full)
-        df['kmeans_cluster'] = kmeans_model.predict(X_kmeans_full_scaled)
-
-    # All numerical features that describe a song's audio characteristics for similarity
-    recommender_features = ['danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness',
-                            'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo',
-                            'time_signature', 'minutes', 'seconds', 'hours', 'explicit', 'popularity', 'kmeans_cluster',
-                            'en_danc_inrct', 'loud_danc_intrct', 'acs_inst_intrc']
+def get_recommender_features(df_with_clusters, recommender_features):
+    # df_with_clusters already contains 'kmeans_cluster'
 
     # Drop any NaNs that might have been introduced during feature engineering if not handled earlier
-    df_clean = df.dropna(subset=recommender_features).reset_index(drop=True)
+    df_clean = df_with_clusters.dropna(subset=recommender_features).reset_index(drop=True)
 
     scaler_recommender = StandardScaler()
     scaled_features = scaler_recommender.fit_transform(df_clean[recommender_features])
 
     df_features = pd.DataFrame(scaled_features, columns=recommender_features, index=df_clean.index)
 
-    return df_clean, df_features, scaler_recommender, recommender_features
+    return df_clean, df_features, scaler_recommender
 
 
 # --- Main App Logic ---
@@ -137,12 +121,31 @@ with st.spinner("Loading and preprocessing data..."):
     my_data_processed = preprocess_data(raw_data)
 st.success("Data Loaded and Preprocessed!")
 
-# Train Models (cached)
+# Train KMeans Model (cached)
 kmeans_model, kmeans_scaler, kmeans_features = train_kmeans(my_data_processed)
-rf_model, rf_scaler, rf_features = train_random_forest(my_data_processed, kmeans_model, kmeans_scaler, kmeans_features)
+
+# Add kmeans_cluster to a copy of the processed data for subsequent steps
+X_kmeans_full = my_data_processed[kmeans_features]
+X_kmeans_full_scaled = kmeans_scaler.transform(X_kmeans_full)
+my_data_with_clusters = my_data_processed.copy()
+my_data_with_clusters['kmeans_cluster'] = kmeans_model.predict(X_kmeans_full_scaled)
+
+# Features for the RandomForest model, including the new interaction terms and kmeans_cluster
+rf_features_list = ['liveness', 'explicit', 'minutes', 'seconds', 'hours', 'key',
+                       'speechiness', 'time_signature', 'kmeans_cluster',
+                       'en_danc_inrct', 'loud_danc_intrct', 'acs_inst_intrc']
+
+# Train RandomForest Model (cached)
+rf_model, rf_scaler = train_random_forest(my_data_with_clusters, rf_features_list)
+
+# All numerical features that describe a song's audio characteristics for similarity
+recommender_features_list = ['danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness',
+                            'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo',
+                            'time_signature', 'minutes', 'seconds', 'hours', 'explicit', 'popularity', 'kmeans_cluster',
+                            'en_danc_inrct', 'loud_danc_intrct', 'acs_inst_intrc']
 
 # Get recommender features
-df_recommender, df_scaled_features, recommender_scaler, recommender_features = get_recommender_features(my_data_processed, kmeans_model, kmeans_scaler, kmeans_features)
+df_recommender, df_scaled_features, recommender_scaler = get_recommender_features(my_data_with_clusters, recommender_features_list)
 
 # --- Sidebar for Navigation/Inputs ---
 st.sidebar.header("Navigation")
@@ -220,7 +223,7 @@ elif page == "Hit Song Prediction":
 
 
     # Scale the input data for the Random Forest model
-    scaled_input = rf_scaler.transform(input_data[rf_features])
+    scaled_input = rf_scaler.transform(input_data[rf_features_list]) # Use rf_features_list
 
     # Make prediction
     prediction = rf_model.predict(scaled_input)
